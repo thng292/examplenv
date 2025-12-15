@@ -56,7 +56,7 @@ def parse_env_file(file_path: Path) -> Iterable[tuple[str, str] | str]:
         print(f"Error reading file {file_path}: {e}", file=sys.stderr)
 
 
-def generate_example_env_file(original_file: Path) -> str:
+def generate_example_env_file(original_file: Path, mask_all: bool) -> str:
     """Generate content for an example.env file.
 
     Args:
@@ -71,7 +71,7 @@ def generate_example_env_file(original_file: Path) -> str:
     for line in env_vars:
         if isinstance(line, tuple):
             value = line[1]
-            if should_ignore(line[0], line[1]):
+            if mask_all or should_ignore(line[0], line[1]):
                 value = f"<YOUR_{line[0]}>"
             lines.append(f"{line[0]}={value}")
         else:
@@ -112,7 +112,7 @@ def find_env_files(
     return found_files
 
 
-def find_and_gen_example_env_files(root_dir: Path) -> None:
+def find_and_gen_example_env_files(root_dir: Path, mask_all: bool) -> None:
     """Recursively find .env.* files and generate corresponding example files.
 
     Args:
@@ -123,7 +123,7 @@ def find_and_gen_example_env_files(root_dir: Path) -> None:
 
         # Parse the env file
         # Generate example file
-        example_content = generate_example_env_file(env_file)
+        example_content = generate_example_env_file(env_file, mask_all)
 
         # Determine output filename
         if env_file.name == ".env":
@@ -194,19 +194,24 @@ def checkPath(path: Path):
         print(f"Error: {path} is not a directory.", file=sys.stderr)
         sys.exit(1)
 
-@app.command()
+@app.command("gen-example-env")
 def gen_example_env(
     dir_to_find: Annotated[
         Path | None,
         typer.Argument(help="Path to search for env file"),
     ] = None,
+    mask_all: Annotated[
+        bool,
+        typer.Option(help="Mask all values, only keep keys"),
+    ] = False
 ):
+    
     """Find and generate all examples for all .env files."""
     root_dir = dir_to_find if dir_to_find else Path.cwd()
     checkPath(root_dir)
 
     print(f"Searching for .env files in: {root_dir}\n")
-    find_and_gen_example_env_files(root_dir)
+    find_and_gen_example_env_files(root_dir, mask_all)
     print("Done!")
 
 
