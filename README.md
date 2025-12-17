@@ -16,34 +16,48 @@ uvx git+https://github.com/thng292/examplenv
 ```bash
 $ cat .env
 # It retain whitespace and comment
-VAR1=DoNotCommitYourEnv
+VAR1="DO NOT COMMIT YOUR ENVS"
 
-VAR2=ButThisIsNotVerySecret
-$ cat .env.test
+VAR2="But this is not very secret"
+
+$ cat ./.env.dev
 STAGE=DEV
 # It cut your secret out too. By putting !SECRET in the comment
 OPENAI_API_KEY=sk-ldfkjslfjldsjflsd # !SECRET
-$ uv run examplenv gen-example-env
+APP_SECRET=ThisIsASecret
+
+$ cat ./.env.prod
+STAGE=DEV
+# !MASK-ON You can mask a region
+OPENAI_API_KEY=sk-ldfkjslfjldsjflsd
+APP_SECRET=ThisIsASecret
+# !MASK-OFF Ignore this to mask to EOF
+
+$ uv run examplenv gen
 Searching for .env files in: /workspaces/examplenv
+.env.dev -> example.env.dev
+.env.prod -> example.env.prod
+.env -> example.env
 
-Found 2 .env file(s):
-
-Processing: /workspaces/examplenv/.env
-  ✓ Generated: example.env
-
-Processing: /workspaces/examplenv/.env.test
-  ✓ Generated: example.env.test
-
-Done!
-$ cat example.env
+$ cat ./example.env
 # Example environment variables for .env
 # It retain whitespace and comment
-VAR1=DoNotCommitYourEnv
+VAR1="DO NOT COMMIT YOUR ENVS"
 
-VAR2=ButThisIsNotVerySecret
-$ cat example.env.test
-# Example environment variables for .env.test
+VAR2="But this is not very secret"
+
+$ cat ./example.env.dev 
+# Example environment variables for .env.dev
 STAGE=DEV
 # It cut your secret out too. By putting !SECRET in the comment
 OPENAI_API_KEY=<YOUR_OPENAI_API_KEY> # !SECRET
+APP_SECRET=ThisIsASecret
+
+$ cat ./example.env.prod
+# Example environment variables for .env.prod
+STAGE=DEV
+# !MASK-ON You can mask a region
+OPENAI_API_KEY=<YOUR_OPENAI_API_KEY>
+APP_SECRET=<YOUR_APP_SECRET>
+# !MASK-OFF Ignore this to mask to EOF
 ```

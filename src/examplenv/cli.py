@@ -8,6 +8,7 @@ import re
 import sys
 from typing import Literal, Iterable, Annotated, TypedDict
 from pathlib import Path
+from glob import glob
 
 import typer
 
@@ -68,23 +69,27 @@ def construct_env_line(env_line: EnvFileLine) -> str:
         res += env_line["comment"]
     return res
 
+SPECIAL_COMMENT_MASK_ON = "!MASK-ON"
+SPECIAL_COMMENT_MASK_OFF = "!MASK-OFF"
+SPECIAL_COMMENT_SECRET = "!SECRET"
 
 def generate_example_env_file(original_file: Path, mask_all: bool) -> str:
-    """Generate content for an example.env file.
-
-    Args:
-        original_file: Path to the original .env file
-
-    Returns:
-        String content for the example.env file>
-    """
     env_vars = parse_env_file(original_file)
     lines = [f"# Example environment variables for {original_file.name}"]
+    in_mask_block = False
 
     for line in env_vars:
+
+        if line["comment"]:
+            if SPECIAL_COMMENT_MASK_ON in line["comment"]:
+                in_mask_block = True
+            if SPECIAL_COMMENT_MASK_OFF in line["comment"]:
+                in_mask_block = False
+
         if (
             mask_all
-            or (line["comment"] and "!SECRET" in line["comment"])
+            or in_mask_block
+            or (line["comment"] and SPECIAL_COMMENT_SECRET in line["comment"])
             and line["value"]
         ):
             line["value"] = f"<YOUR_{line['key'] or ''}>"
@@ -96,33 +101,8 @@ def generate_example_env_file(original_file: Path, mask_all: bool) -> str:
 
 def find_env_files(
     root_dir: Path,
-    pattern: re.Pattern[str] = re.compile(r"^\.env(\..+)?$"),
 ) -> list[Path]:
-    env_pattern = pattern
-    found_files: list[Path] = []
-
-    for dirpath, dirnames, filenames in os.walk(root_dir):
-        skip_dirs = {
-            ".git",
-            "__pycache__",
-            ".venv",
-            "venv",
-            "node_modules",
-            ".next",
-        }
-        dirnames[:] = [d for d in dirnames if d not in skip_dirs]
-
-        for filename in filenames:
-            if env_pattern.match(filename):
-                file_path = Path(dirpath) / filename
-                found_files.append(file_path)
-
-    if not found_files:
-        print("No .env files found.")
-        return []
-
-    print(f"Found {len(found_files)} .env file(s):\n")
-    return found_files
+    return [Path(path) for path in  glob("**/.env*", recursive=True, root_dir=root_dir, include_hidden=True)]
 
 
 def find_and_gen_example_env_files(root_dir: Path, mask_all: bool) -> None:
@@ -132,8 +112,6 @@ def find_and_gen_example_env_files(root_dir: Path, mask_all: bool) -> None:
         root_dir: Root directory to start the search
     """
     for env_file in find_env_files(root_dir):
-        print(f"Processing: {env_file}")
-
         # Parse the env file
         # Generate example file
         example_content = generate_example_env_file(env_file, mask_all)
@@ -149,9 +127,9 @@ def find_and_gen_example_env_files(root_dir: Path, mask_all: bool) -> None:
         try:
             with open(example_file, "w", encoding="utf-8") as f:
                 f.write(example_content)
-            print(f"  ✓ Generated: {example_file.relative_to(root_dir)}\n")
+            print(f"{env_file} -> {example_file}")
         except OSError as e:
-            print(f"  ✗ Error writing {example_file}: {e}\n", file=sys.stderr)
+            print(f"Error writing {example_file}: {e}", file=sys.stderr)
 
 
 def to_dict(iterable: Iterable[str | tuple[str, str]]):
@@ -226,7 +204,6 @@ def gen_example_env(
 
     print(f"Searching for .env files in: {root_dir}\n")
     find_and_gen_example_env_files(root_dir, mask_all)
-    print("Done!")
 
 
 @app.command()
