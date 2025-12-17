@@ -17,8 +17,8 @@ VAR1=DoNotCommitYourEnv
 VAR2=ButThisIsNotVerySecret
 $ cat .env.test
 STAGE=DEV
-# It cut your secret out too. But pls double check
-OPENAI_API_KEY=sk-ldfkjslfjldsjflsd
+# It cut your secret out too. By putting !SECRET in the comment
+OPENAI_API_KEY=sk-ldfkjslfjldsjflsd # !SECRET
 $ uv run examplenv gen-example-env
 Searching for .env files in: /workspaces/examplenv
 
@@ -40,6 +40,6 @@ VAR2=ButThisIsNotVerySecret
 $ cat example.env.test
 # Example environment variables for .env.test
 STAGE=DEV
-# It cut your secret out too. But pls double check
-OPENAI_API_KEY=<YOUR_OPENAI_API_KEY>
+# It cut your secret out too. By putting !SECRET in the comment
+OPENAI_API_KEY=<YOUR_OPENAI_API_KEY> # !SECRET
 ```

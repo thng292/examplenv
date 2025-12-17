@@ -6,7 +6,7 @@ Extracts variable names and infers their value types.
 import os
 import re
 import sys
-from typing import Iterable, Annotated
+from typing import Literal, Iterable, Annotated, TypedDict
 from pathlib import Path
 
 import typer
@@ -14,46 +14,59 @@ import typer
 
 app = typer.Typer()
 
-def should_ignore(key: str, val: str):
-    return key.endswith("API_KEY") or val.startswith(("sk",))
+
+class EnvFileLine(TypedDict):
+    key: str | None
+    value: str | None
+    comment: str | None
 
 
-def parse_env_file(file_path: Path) -> Iterable[tuple[str, str] | str]:
-    """Parse a .env file and extract variable names and their inferred types.
+TOKEN_KV_SEP = "="
+TOKEN_START_COMMENT = "#"
 
-    Args:
-        file_path: Path to the .env file
 
-    Returns:
-        Dictionary mapping variable names to their inferred types
-    """
-    try:
-        with open(file_path, encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
+def parse_env_file(file_path: Path) -> Iterable[EnvFileLine]:
+    with open(file_path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            res: EnvFileLine = {"key": None, "value": None, "comment": None}
 
-                # Skip empty lines and comments
-                if not line or line.startswith("#"):
-                    yield line
-                    continue
+            part_type: Literal["key", "value", "comment"] = "key"
+            part_val_start = 0
+            part_val_end = 0
+            # Parse key
+            for part_val_end, char in enumerate(line):
+                if char == TOKEN_KV_SEP:
+                    if part_val_start != part_val_end:
+                        res[part_type] = line[part_val_start:part_val_end]
+                    else:
+                        res[part_type] = None
+                    part_type = "value"
+                    part_val_start = part_val_end + 1
+                elif char == TOKEN_START_COMMENT:
+                    res[part_type] = line[part_val_start:part_val_end]
+                    part_type = "comment"
+                    part_val_start = part_val_end + 1
+                    break
 
-                if "=" not in line:
-                    yield line
-                    continue
+            res[part_type] = line[part_val_start:].strip()
+            yield res
 
-                key, value = line.split("=", 1)
-                key = key.strip()
 
-                # Skip if key is empty
-                if not key:
-                    yield line
-                    continue
-                # Remove quotes from value if present
-                value = value.strip().strip("\"'")
-                yield (key, value)
-
-    except OSError as e:
-        print(f"Error reading file {file_path}: {e}", file=sys.stderr)
+def construct_env_line(env_line: EnvFileLine) -> str:
+    res = ""
+    if env_line["key"]:
+        res += env_line["key"]
+    if env_line["value"]:
+        res += "="
+        res += env_line["value"]
+    if env_line["comment"]:
+        if res:
+            res += " # "
+        else:
+            res += "# "
+        res += env_line["comment"]
+    return res
 
 
 def generate_example_env_file(original_file: Path, mask_all: bool) -> str:
@@ -69,13 +82,13 @@ def generate_example_env_file(original_file: Path, mask_all: bool) -> str:
     lines = [f"# Example environment variables for {original_file.name}"]
 
     for line in env_vars:
-        if isinstance(line, tuple):
-            value = line[1]
-            if mask_all or should_ignore(line[0], line[1]):
-                value = f"<YOUR_{line[0]}>"
-            lines.append(f"{line[0]}={value}")
-        else:
-            lines.append(line)
+        if (
+            mask_all
+            or (line["comment"] and "!SECRET" in line["comment"])
+            and line["value"]
+        ):
+            line["value"] = f"<YOUR_{line['key'] or ''}>"
+        lines.append(construct_env_line(line))
 
     lines.append("")
     return "\n".join(lines)
@@ -152,38 +165,39 @@ def to_dict(iterable: Iterable[str | tuple[str, str]]):
     return res
 
 
-def find_and_migrate_env_files(root_dir: Path):
-    for example_env_file in find_env_files(
-        root_dir, re.compile(r"^example\.env(\..+)?$")
-    ):
-        print(f"Processing: {example_env_file}")
-        env_file = example_env_file.parent / example_env_file.name.removeprefix(
-            "example"
-        )
-        if env_file.exists() and env_file.is_file():
-            example_env_vars = to_dict(parse_env_file(example_env_file))
-            env_vars = to_dict(parse_env_file(env_file))
-            lines: list[str] = []
+# def find_and_migrate_env_files(root_dir: Path):
+#     for example_env_file in find_env_files(
+#         root_dir, re.compile(r"^example\.env(\..+)?$")
+#     ):
+#         print(f"Processing: {example_env_file}")
+#         env_file = example_env_file.parent / example_env_file.name.removeprefix(
+#             "example"
+#         )
+#         if env_file.exists() and env_file.is_file():
+#             example_env_vars = to_dict(parse_env_file(example_env_file))
+#             env_vars = to_dict(parse_env_file(env_file))
+#             lines: list[str] = []
 
-            for key, val in example_env_vars.items():
-                if val:
-                    if should_ignore(key, val):
-                        lines.append(f"{key}={val}")
-                else:
-                    lines.append(key)
+#             for key, val in example_env_vars.items():
+#                 if val:
+#                     if should_ignore(key, val):
+#                         lines.append(f"{key}={val}")
+#                 else:
+#                     lines.append(key)
 
-            example_content = "\n".join(lines)
-        else:
-            with open(example_env_file) as f:
-                example_content = f.read()
+#             example_content = "\n".join(lines)
+#         else:
+#             with open(example_env_file) as f:
+#                 example_content = f.read()
 
-        # Write example file
-        try:
-            with open(env_file, "w", encoding="utf-8") as f:
-                f.write(example_content)
-            print(f"  ✓ Generated: {env_file.relative_to(root_dir)}\n")
-        except OSError as e:
-            print(f"  ✗ Error writing {env_file}: {e}\n", file=sys.stderr)
+#         # Write example file
+#         try:
+#             with open(env_file, "w", encoding="utf-8") as f:
+#                 f.write(example_content)
+#             print(f"  ✓ Generated: {env_file.relative_to(root_dir)}\n")
+#         except OSError as e:
+#             print(f"  ✗ Error writing {env_file}: {e}\n", file=sys.stderr)
+
 
 def checkPath(path: Path):
     if not path.exists():
@@ -194,7 +208,8 @@ def checkPath(path: Path):
         print(f"Error: {path} is not a directory.", file=sys.stderr)
         sys.exit(1)
 
-@app.command("gen-example-env")
+
+@app.command("gen")
 def gen_example_env(
     dir_to_find: Annotated[
         Path | None,
@@ -203,9 +218,8 @@ def gen_example_env(
     mask_all: Annotated[
         bool,
         typer.Option(help="Mask all values, only keep keys"),
-    ] = False
+    ] = False,
 ):
-    
     """Find and generate all examples for all .env files."""
     root_dir = dir_to_find if dir_to_find else Path.cwd()
     checkPath(root_dir)
@@ -222,15 +236,19 @@ def migrate(
     ],
 ):
     """Migrate the env file for you."""
+
+    raise NotImplementedError()
     root_dir = dir_to_find if dir_to_find else Path.cwd()
     checkPath(root_dir)
 
     print(f"Searching for .env files in: {root_dir}\n")
-    find_and_migrate_env_files(root_dir)
+    # find_and_migrate_env_files(root_dir)
     print("Done!")
+
 
 def main():
     app()
+
 
 if __name__ == "__main__":
     main()
