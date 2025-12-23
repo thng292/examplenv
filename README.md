@@ -24,7 +24,7 @@ $ cat ./.env.dev
 STAGE=DEV
 # It cut your secret out too. By putting !SECRET in the comment
 OPENAI_API_KEY=sk-ldfkjslfjldsjflsd # !SECRET
-APP_SECRET=ThisIsASecret
+APP_SECRET=ThisIsASecret # !SECRET
 
 $ cat ./.env.prod
 STAGE=DEV
@@ -51,7 +51,7 @@ $ cat ./example.env.dev
 STAGE=DEV
 # It cut your secret out too. By putting !SECRET in the comment
 OPENAI_API_KEY=<YOUR_OPENAI_API_KEY> # !SECRET
-APP_SECRET=ThisIsASecret
+APP_SECRET=<YOUR_APP_SECRET> # !SECRET
 
 $ cat ./example.env.prod
 # Example environment variables for .env.prod

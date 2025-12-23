@@ -6,9 +6,9 @@ Extracts variable names and infers their value types.
 import os
 import re
 import sys
+from glob import glob
 from typing import Literal, Iterable, Annotated, TypedDict
 from pathlib import Path
-from glob import glob
 
 import typer
 
@@ -69,9 +69,11 @@ def construct_env_line(env_line: EnvFileLine) -> str:
         res += env_line["comment"]
     return res
 
+
 SPECIAL_COMMENT_MASK_ON = "!MASK-ON"
 SPECIAL_COMMENT_MASK_OFF = "!MASK-OFF"
 SPECIAL_COMMENT_SECRET = "!SECRET"
+
 
 def generate_example_env_file(original_file: Path, mask_all: bool) -> str:
     env_vars = parse_env_file(original_file)
@@ -79,7 +81,6 @@ def generate_example_env_file(original_file: Path, mask_all: bool) -> str:
     in_mask_block = False
 
     for line in env_vars:
-
         if line["comment"]:
             if SPECIAL_COMMENT_MASK_ON in line["comment"]:
                 in_mask_block = True
@@ -90,8 +91,7 @@ def generate_example_env_file(original_file: Path, mask_all: bool) -> str:
             mask_all
             or in_mask_block
             or (line["comment"] and SPECIAL_COMMENT_SECRET in line["comment"])
-            and line["value"]
-        ):
+        ) and line["value"]:
             line["value"] = f"<YOUR_{line['key'] or ''}>"
         lines.append(construct_env_line(line))
 
@@ -102,7 +102,12 @@ def generate_example_env_file(original_file: Path, mask_all: bool) -> str:
 def find_env_files(
     root_dir: Path,
 ) -> list[Path]:
-    return [Path(path) for path in  glob("**/.env*", recursive=True, root_dir=root_dir, include_hidden=True)]
+    return [
+        Path(path)
+        for path in glob(
+            "**/.env*", recursive=True, root_dir=root_dir, include_hidden=True
+        )
+    ]
 
 
 def find_and_gen_example_env_files(root_dir: Path, mask_all: bool) -> None:
