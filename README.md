@@ -4,7 +4,7 @@ Utilities to generate example.env and merge them
 ## How to install
 
 ```bash
-uv add --dev https://github.com/thng292/examplenv
+uv add --dev git+https://github.com/thng292/examplenv
 ```
 Or run it straigt from source
 ```bash
